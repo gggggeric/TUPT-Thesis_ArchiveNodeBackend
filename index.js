@@ -13,6 +13,7 @@ app.use(express.json());
 
 // Routes
 app.use('/auth', require('./routes/auth'));
+app.use('/user', require('./routes/user'));
 
 // Start server
 app.listen(PORT, () => {
