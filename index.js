@@ -1,5 +1,6 @@
 require('dotenv').config();
 const express = require('express');
+const cors = require('cors'); // Import CORS
 const connectDB = require('./db/connection');
 
 const app = express();
@@ -9,6 +10,7 @@ const PORT = process.env.PORT || 5000;
 connectDB();
 
 // Middleware
+app.use(cors()); // Enable CORS for all origins
 app.use(express.json());
 
 // Routes
