@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Thesis = require('../models/Thesis');
 const auth = require('../middleware/auth');
+const { generateText } = require('../modules/ai');
 
 // --- STATIC ROUTES FIRST ---
 
@@ -209,6 +210,29 @@ router.get('/:id', auth, async (req, res) => {
     } catch (error) {
         console.error('Fetch error:', error);
         res.status(500).json({ message: 'Server error fetching thesis' });
+    }
+});
+
+// @route   POST /thesis/recommendations
+// @desc    Get AI-generated thesis recommendations based on a prompt or context
+router.post('/recommendations', auth, async (req, res) => {
+    try {
+        const { prompt } = req.body;
+
+        if (!prompt) {
+            return res.status(400).json({ message: 'Please provide a prompt for the AI' });
+        }
+
+        // Example: You can query the database here to give context to the AI
+        // const theses = await Thesis.find({ isApproved: true }).limit(5);
+        // const contextPrompt = `Suggest based on these: ${theses.map(t => t.title).join(', ')}. Query: ${prompt}`;
+
+        const aiResponse = await generateText(prompt);
+
+        res.json({ recommendation: aiResponse });
+    } catch (error) {
+        console.error('Error generating AI recommendation:', error);
+        res.status(500).json({ message: 'Server error generating AI recommendation' });
     }
 });
 

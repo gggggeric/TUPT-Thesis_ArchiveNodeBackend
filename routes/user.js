@@ -1,6 +1,7 @@
 const express = require('express');
 const User = require('../models/User');
 const Thesis = require('../models/Thesis');
+const AiHistory = require('../models/AiHistory');
 const router = express.Router();
 const auth = require('../middleware/auth');
 const multer = require('multer');
@@ -203,6 +204,60 @@ router.post('/analyze', auth, upload.single('thesis'), async (req, res) => {
             message: 'Error analyzing document',
             error: err.message
         });
+    }
+});
+
+// @route   GET /user/ai-history
+// @desc    Get all AI prompt history for the logged-in user
+router.get('/ai-history', auth, async (req, res) => {
+    try {
+        const history = await AiHistory.find({ user: req.user }).sort({ createdAt: -1 });
+        res.json({ success: true, data: history });
+    } catch (err) {
+        console.error('Fetch AI history error:', err);
+        res.status(500).json({ success: false, message: 'Error fetching AI history', error: err.message });
+    }
+});
+
+// @route   DELETE /user/ai-history/:id
+// @desc    Delete a specific AI prompt history
+router.delete('/ai-history/:id', auth, async (req, res) => {
+    try {
+        const history = await AiHistory.findOne({ _id: req.params.id, user: req.user });
+
+        if (!history) {
+            return res.status(404).json({ success: false, message: 'History record not found or unauthorized' });
+        }
+
+        await history.deleteOne();
+        res.json({ success: true, message: 'History record deleted' });
+    } catch (err) {
+        console.error('Delete AI history error:', err);
+        res.status(500).json({ success: false, message: 'Error deleting AI history', error: err.message });
+    }
+});
+
+// @route   POST /user/ai-history
+// @desc    Save a new AI prompt/recommendation
+router.post('/ai-history', auth, async (req, res) => {
+    try {
+        const { prompt, recommendation } = req.body;
+
+        if (!prompt || !recommendation) {
+            return res.status(400).json({ success: false, message: 'Prompt and recommendation required' });
+        }
+
+        const newHistory = new AiHistory({
+            user: req.user,
+            prompt,
+            recommendation
+        });
+
+        await newHistory.save();
+        res.status(201).json({ success: true, data: newHistory });
+    } catch (err) {
+        console.error('Save AI history error:', err);
+        res.status(500).json({ success: false, message: 'Error saving AI history', error: err.message });
     }
 });
 
