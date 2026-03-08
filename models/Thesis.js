@@ -36,6 +36,10 @@ const thesisSchema = new mongoose.Schema({
     category: {
         type: String,
         default: 'General'
+    },
+    isApproved: {
+        type: Boolean,
+        default: false
     }
 }, {
     timestamps: true

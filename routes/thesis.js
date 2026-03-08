@@ -14,7 +14,7 @@ router.get('/health', auth, (req, res) => {
 // @desc    Get total number of thesis records
 router.get('/count', auth, async (req, res) => {
     try {
-        const count = await Thesis.countDocuments();
+        const count = await Thesis.countDocuments({ isApproved: true });
         res.json({ count });
     } catch (err) {
         res.status(500).json({ message: 'Error counting theses', error: err.message });
@@ -25,7 +25,7 @@ router.get('/count', auth, async (req, res) => {
 // @desc    Get all unique years for filtering
 router.get('/years', auth, async (req, res) => {
     try {
-        const years = await Thesis.distinct('year_range');
+        const years = await Thesis.distinct('year_range', { isApproved: true });
         const sortedYears = years.filter(y => y && y !== 'unknown').sort().reverse();
         res.json(sortedYears);
     } catch (error) {
@@ -38,7 +38,7 @@ router.get('/years', auth, async (req, res) => {
 // @desc    Get all unique categories for filtering
 router.get('/categories', auth, async (req, res) => {
     try {
-        const categories = await Thesis.distinct('category');
+        const categories = await Thesis.distinct('category', { isApproved: true });
         const sortedCategories = categories.filter(c => c && c !== 'General').sort();
         res.json(['all', ...sortedCategories]);
     } catch (error) {
@@ -52,6 +52,9 @@ router.get('/categories', auth, async (req, res) => {
 router.get('/department-counts', auth, async (req, res) => {
     try {
         const counts = await Thesis.aggregate([
+            {
+                $match: { isApproved: true }
+            },
             {
                 $group: {
                     _id: "$category",
@@ -83,7 +86,7 @@ router.get('/department-counts', auth, async (req, res) => {
 router.get('/search', auth, async (req, res) => {
     try {
         const { query, year, type, category, since, sort, startDate, endDate } = req.query;
-        let filter = {};
+        let filter = { isApproved: true };
 
         if (year && year !== 'all') {
             filter.year_range = year;
@@ -198,7 +201,7 @@ router.get('/search', auth, async (req, res) => {
 // @desc    Get single thesis by ID
 router.get('/:id', auth, async (req, res) => {
     try {
-        const thesis = await Thesis.findOne({ id: req.params.id });
+        const thesis = await Thesis.findOne({ id: req.params.id, isApproved: true });
         if (!thesis) {
             return res.status(404).json({ message: 'Thesis not found' });
         }
