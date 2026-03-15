@@ -2,6 +2,7 @@
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
     "bcryptjs": "^3.0.3",
+    "cloudinary": "^1.41.3",
     "compromise": "^14.15.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
@@ -10,6 +11,7 @@
     "mammoth": "^1.11.0",
     "mongoose": "^8.19.3",
     "multer": "^2.1.1",
+    "multer-storage-cloudinary": "^4.0.0",
     "pdf-parse": "^2.4.5",
     "text-readability": "^1.1.1"
   },

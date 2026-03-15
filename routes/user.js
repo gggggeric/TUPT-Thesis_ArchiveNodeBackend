@@ -1,6 +1,8 @@
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
+const cloudinary = require('cloudinary').v2;
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const User = require('../models/User');
 const Thesis = require('../models/Thesis');
 const AiHistory = require('../models/AiHistory');
@@ -10,41 +12,32 @@ const auth = require('../middleware/auth');
 const multer = require('multer');
 const { analyzeDocument } = require('../modules/documentAnalyzer');
 
+// Configure Cloudinary
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_ID,
+    api_key: process.env.CLOUDINARY_API,
+    api_secret: process.env.CLOUDINARY_API_SECRET
+});
+
 // Multer configuration for file analysis (memory storage)
 const upload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
 });
 
-// Multer configuration for profile photos (disk storage)
-const profileStorage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        const dir = 'uploads/profile-photos';
-        if (!fs.existsSync(dir)) {
-            fs.mkdirSync(dir, { recursive: true });
-        }
-        cb(null, dir);
-    },
-    filename: (req, file, cb) => {
-        // Use user ID or random string to avoid collisions
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, 'profile-' + uniqueSuffix + path.extname(file.originalname));
+// Cloudinary storage configuration
+const profileStorage = new CloudinaryStorage({
+    cloudinary: cloudinary,
+    params: {
+        folder: 'profilePictures_capstone2',
+        allowed_formats: ['jpg', 'png', 'jpeg'],
+        transformation: [{ width: 500, height: 500, crop: 'limit' }]
     }
 });
 
 const profileUpload = multer({
     storage: profileStorage,
-    limits: { fileSize: 2 * 1024 * 1024 }, // 2MB limit for profile photos
-    fileFilter: (req, file, cb) => {
-        const allowedTypes = /jpeg|jpg|png/;
-        const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-        const mimetype = allowedTypes.test(file.mimetype);
-        if (extname && mimetype) {
-            return cb(null, true);
-        } else {
-            cb(new Error('Only images (JPEG/JPG/PNG) are allowed'));
-        }
-    }
+    limits: { fileSize: 2 * 1024 * 1024 } // 2MB
 });
 
 // @route   POST /user/theses
@@ -340,7 +333,7 @@ router.post('/profile-photo', auth, profileUpload.single('photo'), async (req, r
             return res.status(400).json({ success: false, message: 'Please upload a photo' });
         }
 
-        const filePath = `/uploads/profile-photos/${req.file.filename}`;
+        const filePath = req.file.path; // Cloudinary returns the full URL in path
         
         // Update user profile with photo path
         const user = await User.findByIdAndUpdate(
