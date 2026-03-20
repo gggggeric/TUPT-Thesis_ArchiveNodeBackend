@@ -540,7 +540,10 @@ router.delete('/local-history', auth, async (req, res) => {
 // @desc    Get all session history for the user
 router.get('/session-history', auth, async (req, res) => {
     try {
-        const history = await SessionHistory.find({ user: req.user }).sort({ createdAt: -1 }).limit(20);
+        const history = await SessionHistory.find({ user: req.user })
+            .sort({ createdAt: -1 })
+            .limit(20)
+            .populate('thesis', 'id title year_range');
         res.json({ success: true, data: history });
     } catch (err) {
         console.error('Fetch session history error:', err);

@@ -238,7 +238,19 @@ router.get('/search', auth, async (req, res) => {
 // @desc    Get single thesis by ID
 router.get('/:id', auth, async (req, res) => {
     try {
-        const thesis = await Thesis.findOne({ id: req.params.id, isApproved: true });
+        const idParam = req.params.id;
+        let thesis;
+
+        // Check if idParam is a valid MongoDB ObjectId
+        if (idParam.match(/^[0-9a-fA-F]{24}$/)) {
+            thesis = await Thesis.findOne({
+                $or: [{ _id: idParam }, { id: idParam }],
+                isApproved: true
+            });
+        } else {
+            thesis = await Thesis.findOne({ id: idParam, isApproved: true });
+        }
+
         if (!thesis) {
             return res.status(404).json({ message: 'Thesis not found' });
         }
