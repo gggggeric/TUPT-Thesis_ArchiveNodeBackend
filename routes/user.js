@@ -8,6 +8,7 @@ const Thesis = require('../models/Thesis');
 const AiHistory = require('../models/AiHistory');
 const LocalComparison = require('../models/LocalComparison');
 const AnalysisDraft = require('../models/AnalysisDraft');
+const SessionHistory = require('../models/SessionHistory');
 const router = express.Router();
 const auth = require('../middleware/auth');
 const multer = require('multer');
@@ -532,6 +533,97 @@ router.delete('/local-history', auth, async (req, res) => {
     } catch (err) {
         console.error('Clear local history error:', err);
         res.status(500).json({ success: false, message: 'Error clearing local history', error: err.message });
+    }
+});
+
+// @route   GET /user/session-history
+// @desc    Get all session history for the user
+router.get('/session-history', auth, async (req, res) => {
+    try {
+        const history = await SessionHistory.find({ user: req.user })
+            .sort({ createdAt: -1 })
+            .limit(20)
+            .populate('thesis', 'id title year_range');
+        res.json({ success: true, data: history });
+    } catch (err) {
+        console.error('Fetch session history error:', err);
+        res.status(500).json({ success: false, message: 'Error fetching history', error: err.message });
+    }
+});
+
+// @route   POST /user/session-history
+// @desc    Add or update a session history record
+router.post('/session-history', auth, async (req, res) => {
+    try {
+        const { id, title, year } = req.body;
+
+        if (!id || !title) {
+            return res.status(400).json({ success: false, message: 'Thesis ID and title required' });
+        }
+
+        // Upsert logic: if user viewed this thesis before, update timestamp
+        // Note: we use thesis ID (custom string) or ObjectId? 
+        // Better to check if the provided 'id' fits as a MongoDB ObjectId
+        let query = { user: req.user };
+        if (id.match(/^[0-9a-fA-F]{24}$/)) {
+            query.thesis = id;
+        } else {
+            // Find thesis by custom id field first
+            const thesis = await Thesis.findOne({ id: id });
+            if (thesis) {
+                query.thesis = thesis._id;
+            } else {
+                return res.status(404).json({ success: false, message: 'Thesis not found' });
+            }
+        }
+
+        let history = await SessionHistory.findOne(query);
+        
+        if (history) {
+            history.createdAt = Date.now();
+            await history.save();
+        } else {
+            history = new SessionHistory({
+                user: req.user,
+                thesis: query.thesis,
+                title,
+                year: year || 'unknown'
+            });
+            await history.save();
+        }
+
+        res.status(201).json({ success: true, data: history });
+    } catch (err) {
+        console.error('Save session history error:', err);
+        res.status(500).json({ success: false, message: 'Error saving history', error: err.message });
+    }
+});
+
+// @route   DELETE /user/session-history/:id
+// @desc    Delete a specific history entry
+router.delete('/session-history/:id', auth, async (req, res) => {
+    try {
+        const history = await SessionHistory.findOne({ _id: req.params.id, user: req.user });
+        if (!history) {
+            return res.status(404).json({ success: false, message: 'History record not found' });
+        }
+        await history.deleteOne();
+        res.json({ success: true, message: 'Record deleted' });
+    } catch (err) {
+        console.error('Delete session history error:', err);
+        res.status(500).json({ success: false, message: 'Error deleting record', error: err.message });
+    }
+});
+
+// @route   DELETE /user/session-history
+// @desc    Clear all session history for the user
+router.delete('/session-history', auth, async (req, res) => {
+    try {
+        await SessionHistory.deleteMany({ user: req.user });
+        res.json({ success: true, message: 'All session history cleared' });
+    } catch (err) {
+        console.error('Clear session history error:', err);
+        res.status(500).json({ success: false, message: 'Error clearing history', error: err.message });
     }
 });
 

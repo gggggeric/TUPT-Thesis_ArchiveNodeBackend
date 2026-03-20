@@ -1,6 +1,6 @@
 require('dotenv').config();
 const express = require('express');
-const cors = require('cors'); // Import CORS
+const cors = require('cors');
 const connectDB = require('./db/connection');
 
 const app = express();
@@ -10,7 +10,7 @@ const PORT = process.env.PORT;
 connectDB();
 
 // Middleware
-const allowedOrigins = ['http://localhost:3000', 'https://tupt-thesis-archive.vercel.app'];
+const allowedOrigins = ['http://localhost:3000', 'https://tupt-thesis-archive.vercel.app', 'http://localhost:3001'];
 app.use(cors({
     origin: function (origin, callback) {
         // Allow requests with no origin (like mobile apps or curl requests)
