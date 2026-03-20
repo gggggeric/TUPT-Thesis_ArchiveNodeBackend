@@ -134,7 +134,12 @@ router.get('/search', auth, async (req, res) => {
         }
 
         if (category && category !== 'all') {
-            filter.category = category;
+            const catLower = category.toLowerCase();
+            if (catLower === 'uncategorized') {
+                filter.category = { $in: [null, 'Uncategorized', 'uncategorized', ''] };
+            } else {
+                filter.category = category;
+            }
         }
 
         if (query) {
