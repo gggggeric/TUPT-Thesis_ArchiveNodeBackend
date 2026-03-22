@@ -20,10 +20,14 @@ const userSchema = new mongoose.Schema({
         required: [true, 'Birthdate is required'],
         validate: {
             validator: function (value) {
-                // Check if birthdate is not in the future
-                return value <= new Date();
+                // Must be at least 18 years old
+                const today = new Date();
+                const minAgeDate = new Date();
+                minAgeDate.setFullYear(today.getFullYear() - 18);
+                // Allow today's leeway for timezones
+                return value <= minAgeDate;
             },
-            message: 'Birthdate cannot be in the future'
+            message: 'You must be at least 18 years old to register'
         }
     },
     password: {
