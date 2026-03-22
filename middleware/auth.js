@@ -20,4 +20,20 @@ const auth = (req, res, next) => {
     }
 };
 
+const optionalAuth = (req, res, next) => {
+    try {
+        const token = req.header('Authorization')?.replace('Bearer ', '');
+        if (token) {
+            const verified = jwt.verify(token, process.env.JWT_SECRET);
+            if (verified) {
+                req.user = verified.id;
+            }
+        }
+    } catch (err) {
+        // Just continue without user
+    }
+    next();
+};
+
 module.exports = auth;
+module.exports.optionalAuth = optionalAuth;
