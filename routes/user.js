@@ -9,6 +9,7 @@ const AiHistory = require('../models/AiHistory');
 const LocalComparison = require('../models/LocalComparison');
 const AnalysisDraft = require('../models/AnalysisDraft');
 const SessionHistory = require('../models/SessionHistory');
+const Collaboration = require('../models/Collaboration');
 const router = express.Router();
 const auth = require('../middleware/auth');
 const multer = require('multer');
@@ -130,10 +131,16 @@ router.delete('/theses/:id', auth, async (req, res) => {
 
         await thesis.deleteOne();
         
+        // Cascade delete: Remove associated collaborations and session history
+        await Promise.all([
+            Collaboration.deleteMany({ thesis: req.params.id }),
+            SessionHistory.deleteMany({ thesis: req.params.id })
+        ]);
+        
         // Invalidate public search cache
         await invalidateSearchCache();
 
-        res.json({ success: true, message: 'Thesis deleted successfully' });
+        res.json({ success: true, message: 'Thesis and associated data deleted successfully' });
     } catch (err) {
         console.error('Delete error:', err);
         res.status(500).json({ success: false, message: 'Error deleting thesis', error: err.message });

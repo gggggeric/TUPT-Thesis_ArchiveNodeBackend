@@ -3,6 +3,7 @@ const router = express.Router();
 const User = require('../models/User');
 const Thesis = require('../models/Thesis');
 const Collaboration = require('../models/Collaboration');
+const SessionHistory = require('../models/SessionHistory');
 const AiHistory = require('../models/AiHistory');
 const auth = require('../middleware/auth');
 const admin = require('../middleware/admin');
@@ -327,9 +328,15 @@ router.delete('/theses/:id', async (req, res) => {
         const thesis = await Thesis.findByIdAndDelete(req.params.id);
         if (!thesis) return res.status(404).json({ success: false, message: 'Thesis not found' });
         
+        // Cascade delete: Remove associated collaborations and session history
+        await Promise.all([
+            Collaboration.deleteMany({ thesis: req.params.id }),
+            SessionHistory.deleteMany({ thesis: req.params.id })
+        ]);
+        
         await invalidateSearchCache();
 
-        res.json({ success: true, message: 'Thesis deleted successfully' });
+        res.json({ success: true, message: 'Thesis and associated data deleted successfully' });
     } catch (err) {
         res.status(500).json({ success: false, message: 'Error deleting thesis', error: err.message });
     }
