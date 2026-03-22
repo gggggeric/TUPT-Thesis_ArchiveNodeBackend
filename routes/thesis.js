@@ -1,11 +1,15 @@
 const express = require('express');
 const router = express.Router();
+const mongoose = require('mongoose');
 const Thesis = require('../models/Thesis');
 const LocalComparison = require('../models/LocalComparison');
 const auth = require('../middleware/auth');
+const { optionalAuth } = auth;
 const { generateText } = require('../modules/ai');
 const { redis, getSearchCacheVersion } = require('../modules/cache');
 const { findSimilarity } = require('../modules/documentAnalyzer');
+const AiHistory = require('../models/AiHistory');
+const Collaboration = require('../models/Collaboration');
 
 // --- STATIC ROUTES FIRST ---
 
@@ -220,7 +224,69 @@ router.get('/search', auth, async (req, res) => {
             }
         });
 
-        // 4. Limit results
+        // 4. Populate createdBy details
+        pipeline.push({
+            $lookup: {
+                from: 'users',
+                localField: 'createdBy',
+                foreignField: '_id',
+                as: 'creator'
+            }
+        });
+        pipeline.push({
+            $addFields: {
+                isUploadedByUndergrad: {
+                    $cond: {
+                        if: { $ne: ["$createdBy", null] }, // If ANY user ID is present on the thesis
+                        then: {
+                            $cond: {
+                                if: { $gt: [{ $size: "$creator" }, 0] },
+                                // Confirm it's NOT an alumni account
+                                then: { $ne: [{ $arrayElemAt: ["$creator.isGraduate", 0] }, true] },
+                                else: true // If we see a createdBy but no User doc, treat as student (permissive)
+                            }
+                        },
+                        else: false // System/OCR: No collaboration button
+                    }
+                },
+                createdBy: { $toString: "$createdBy" }
+            }
+        });
+        // We keep createdBy, but we can also project it explicitly if needed
+        pipeline.push({ $project: { creator: 0 } });
+
+        // 5. Check if the current user has already requested collaboration
+        if (req.user) {
+            pipeline.push({
+                $lookup: {
+                    from: 'collaborations',
+                    let: { thesisId: '$_id' },
+                    pipeline: [
+                        {
+                            $match: {
+                                $expr: {
+                                    $and: [
+                                        { $eq: ['$thesis', '$$thesisId'] },
+                                        { $eq: [{ $toString: '$alumni' }, req.user.toString()] }
+                                    ]
+                                }
+                            }
+                        }
+                    ],
+                    as: 'userCollaboration'
+                }
+            });
+            pipeline.push({
+                $addFields: {
+                    hasRequestedCollaboration: { $gt: [{ $size: '$userCollaboration' }, 0] }
+                }
+            });
+            pipeline.push({ $project: { userCollaboration: 0 } });
+        } else {
+            pipeline.push({ $addFields: { hasRequestedCollaboration: false } });
+        }
+
+        // 6. Limit results
         pipeline.push({ $limit: 50 });
 
         const results = await Thesis.aggregate(pipeline);
@@ -243,9 +309,9 @@ router.get('/search', auth, async (req, res) => {
     }
 });
 
-// @route   GET /thesis/:id
+// @route   GET /thesis/find-one/:id
 // @desc    Get single thesis by ID
-router.get('/:id', auth, async (req, res) => {
+router.get('/find-one/:id', auth, async (req, res) => {
     try {
         const idParam = req.params.id;
         let thesis;
@@ -253,17 +319,45 @@ router.get('/:id', auth, async (req, res) => {
         // Check if idParam is a valid MongoDB ObjectId
         if (idParam.match(/^[0-9a-fA-F]{24}$/)) {
             thesis = await Thesis.findOne({
-                $or: [{ _id: idParam }, { id: idParam }],
-                isApproved: true
+                $or: [{ _id: idParam }, { id: idParam }]
             });
         } else {
-            thesis = await Thesis.findOne({ id: idParam, isApproved: true });
+            thesis = await Thesis.findOne({ id: idParam });
         }
 
         if (!thesis) {
             return res.status(404).json({ message: 'Thesis not found' });
         }
-        res.json(thesis);
+
+        // Access control: If not approved, only Admin or the Creator can see it
+        if (!thesis.isApproved && !req.user.isAdmin && thesis.createdBy && thesis.createdBy.toString() !== req.user.id) {
+            return res.status(403).json({ message: 'Thesis pending approval' });
+        }
+
+        // Add undergrad status
+        const thesisData = thesis.toObject();
+        if (thesis.createdBy) {
+            const User = mongoose.model('User');
+            const creator = await User.findById(thesis.createdBy);
+            // Relaxed check: Undergrad if isGraduate is NOT true (handles missing fields)
+            thesisData.isUploadedByUndergrad = creator ? (creator.isGraduate !== true) : true;
+            thesisData.createdBy = thesis.createdBy.toString();
+        } else {
+            thesisData.isUploadedByUndergrad = false;
+        }
+
+        // Check for existing collaboration request
+        if (req.user) {
+            const existingCollab = await Collaboration.findOne({
+                thesis: thesis._id,
+                alumni: req.user
+            });
+            thesisData.hasRequestedCollaboration = !!existingCollab;
+        } else {
+            thesisData.hasRequestedCollaboration = false;
+        }
+
+        res.json(thesisData);
     } catch (error) {
         console.error('Fetch error:', error);
         res.status(500).json({ message: 'Server error fetching thesis' });
@@ -275,20 +369,70 @@ router.get('/:id', auth, async (req, res) => {
 router.post('/recommendations', auth, async (req, res) => {
     try {
         const { prompt, query } = req.body;
+        const targetQuery = query || prompt;
 
-        if (!prompt) {
+        if (!targetQuery) {
             return res.status(400).json({ message: 'Please provide a prompt for the AI' });
         }
 
         // Check if the query is just a single word
-        const targetQuery = query || prompt;
-        if (targetQuery && targetQuery.trim().split(/\s+/).length <= 1) {
+        if (targetQuery.trim().split(/\s+/).length <= 1) {
             return res.json({ 
                 recommendation: "In the analysis on recommending and comparison of the title, one word isn't enough for a valid title." 
             });
         }
 
-        const aiResponse = await generateText(prompt);
+        const aiPrompt = `
+            Role: Senior Academic Research Consultant & Strategic Advisor
+            Context: A student is seeking a high-level thesis recommendation based on their initial query or interest.
+            
+            Subject Query: "${targetQuery}"
+            
+            Task: Provide a "Strategic Research Intelligence & Recommendation Report" that transforms this query into specific, academically rigorous thesis titles.
+            
+            Structure your response EXACTLY with these sections:
+            
+            Strategic Research Intelligence & Recommendation Report
+            Subject Query: "${targetQuery}"
+            
+            Functional Requirements:
+            [Explain why this query needs refinement and what makes a strong thesis title in this context, focusing on scope, methodology, and academic contribution.]
+            
+            Conclusion:
+            [A brief summary of the transition from a general idea to a specific research investigation.]
+            
+            Recommendations:
+            1. "[Specific, Polished Thesis Title 1]"
+            * Rationale: [Explain why this specific title is academically strong and what it covers.]
+            
+            2. "[Specific, Polished Thesis Title 2]"
+            * Rationale: [Explain why this specific title is academically strong and what it covers.]
+            
+            3. "[Specific, Polished Thesis Title 3]"
+            * Rationale: [Explain why this specific title is academically strong and what it covers.]
+            
+            CRITICAL FORMATTING RULES:
+            - Use EXACTLY the headers above.
+            - DO NOT wrap headers in asterisks (NO *Functional Requirements:*, NO **Functional Requirements:**).
+            - Use double newlines (\n\n) between sections.
+            - Maintain a professional, authoritative, and institutional tone.
+        `;
+
+        const aiResponse = await generateText(aiPrompt);
+
+        // Save to history if user is authenticated
+        if (req.user) {
+            try {
+                const historyEntry = new AiHistory({
+                    user: req.user.id || req.user,
+                    prompt: targetQuery,
+                    recommendation: aiResponse
+                });
+                await historyEntry.save();
+            } catch (saveErr) {
+                console.error('Failed to save AI history:', saveErr);
+            }
+        }
 
         res.json({ recommendation: aiResponse });
     } catch (error) {
@@ -407,18 +551,26 @@ router.post('/compare-local', auth, async (req, res) => {
         // Save to history if user is authenticated
         if (req.user) {
             try {
-                const historyEntry = new LocalComparison({
-                    user: req.user,
+                // Save to detailed LocalComparison history
+                const localEntry = new LocalComparison({
+                    user: req.user.id || req.user,
                     searchQuery: title,
                     similarityScore: Math.round(pureTitleSim * 100),
                     matchedTitle: pureTitleMatch ? pureTitleMatch.title : null,
                     matchedId: pureTitleMatch ? pureTitleMatch.id : null,
                     recommendation: recommendation
                 });
-                await historyEntry.save();
+                await localEntry.save();
+
+                // Also save to general AiHistory for unified view
+                const aiEntry = new AiHistory({
+                    user: req.user.id || req.user,
+                    prompt: `[Similarity Check] ${title}`,
+                    recommendation: recommendation
+                });
+                await aiEntry.save();
             } catch (saveErr) {
-                console.error('Failed to save local comparison history:', saveErr);
-                // Don't fail the request just because history saving failed
+                console.error('Failed to save comparison history:', saveErr);
             }
         }
 

@@ -31,6 +31,7 @@ app.use('/auth', require('./routes/auth'));
 app.use('/user', require('./routes/user'));
 app.use('/thesis', require('./routes/thesis'));
 app.use('/admin', require('./routes/admin'));
+app.use('/collaboration', require('./routes/collaboration'));
 
 // Start server
 app.listen(PORT, () => {

@@ -325,4 +325,44 @@ router.delete('/theses/:id', async (req, res) => {
     }
 });
 
+// @route   PATCH /admin/theses/:id/approve
+// @desc    Approve a thesis
+router.patch('/theses/:id/approve', async (req, res) => {
+    try {
+        const thesis = await Thesis.findByIdAndUpdate(
+            req.params.id, 
+            { isApproved: true }, 
+            { new: true }
+        );
+        
+        if (!thesis) return res.status(404).json({ success: false, message: 'Thesis not found' });
+        
+        await invalidateSearchCache();
+
+        res.json({ success: true, message: 'Thesis approved successfully', data: thesis });
+    } catch (err) {
+        res.status(500).json({ success: false, message: 'Error approving thesis', error: err.message });
+    }
+});
+
+// @route   PATCH /admin/theses/:id/disapprove
+// @desc    Disapprove a thesis
+router.patch('/theses/:id/disapprove', async (req, res) => {
+    try {
+        const thesis = await Thesis.findByIdAndUpdate(
+            req.params.id, 
+            { isApproved: false }, 
+            { new: true }
+        );
+        
+        if (!thesis) return res.status(404).json({ success: false, message: 'Thesis not found' });
+        
+        await invalidateSearchCache();
+
+        res.json({ success: true, message: 'Thesis disapproved successfully', data: thesis });
+    } catch (err) {
+        res.status(500).json({ success: false, message: 'Error disapproving thesis', error: err.message });
+    }
+});
+
 module.exports = router;
