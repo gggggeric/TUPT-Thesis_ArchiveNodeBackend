@@ -42,21 +42,21 @@ router.get('/years', auth, async (req, res) => {
     }
 });
 
-// @route   GET /thesis/categories
-// @desc    Get all unique categories for filtering
-router.get('/categories', auth, async (req, res) => {
+// @route   GET /thesis/courses
+// @desc    Get all unique courses for filtering
+router.get('/courses', auth, async (req, res) => {
     try {
-        const categories = await Thesis.distinct('category', { isApproved: true });
-        const sortedCategories = categories.filter(c => c && c !== 'General').sort();
-        res.json(['all', ...sortedCategories]);
+        const courses = await Thesis.distinct('course', { isApproved: true });
+        const sortedCourses = courses.filter(c => c && c !== 'General').sort();
+        res.json(['all', ...sortedCourses]);
     } catch (error) {
-        console.error('Error fetching categories:', error);
-        res.status(500).json({ message: 'Error fetching categories' });
+        console.error('Error fetching courses:', error);
+        res.status(500).json({ message: 'Error fetching courses' });
     }
 });
 
 // @route   GET /thesis/department-counts
-// @desc    Get counts grouped by department/category
+// @desc    Get counts grouped by department/course
 router.get('/department-counts', auth, async (req, res) => {
     try {
         const counts = await Thesis.aggregate([
@@ -65,7 +65,7 @@ router.get('/department-counts', auth, async (req, res) => {
             },
             {
                 $group: {
-                    _id: "$category",
+                    _id: "$course",
                     count: { $sum: 1 }
                 }
             },
@@ -76,7 +76,7 @@ router.get('/department-counts', auth, async (req, res) => {
 
         // Transform for easier frontend consumption
         const formattedCounts = counts.map(c => ({
-            category: c._id || 'Uncategorized',
+            course: c._id || 'Uncategorized',
             count: c.count
         }));
 
@@ -93,7 +93,7 @@ router.get('/department-counts', auth, async (req, res) => {
 // @desc    Search theses by title, author, or abstract using regex and text index
 router.get('/search', auth, async (req, res) => {
     try {
-        const { query, year, type, category, since, sort, startDate, endDate } = req.query;
+        const { query, year, type, course, since, sort, startDate, endDate } = req.query;
 
         // --- CACHE CHECK ---
         let cacheKey = null;
@@ -141,12 +141,12 @@ router.get('/search', auth, async (req, res) => {
             }
         }
 
-        if (category && category !== 'all') {
-            const catLower = category.toLowerCase();
-            if (catLower === 'uncategorized') {
-                filter.category = { $in: [null, 'Uncategorized', 'uncategorized', '', 'uncategorized'] };
+        if (course && course !== 'all') {
+            const courseLower = course.toLowerCase();
+            if (courseLower === 'uncategorized') {
+                filter.course = { $in: [null, 'Uncategorized', 'uncategorized', '', 'uncategorized'] };
             } else {
-                filter.category = { $regex: new RegExp(`^${category}$`, 'i') };
+                filter.course = { $regex: new RegExp(`^${course}$`, 'i') };
             }
         }
 

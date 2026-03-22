@@ -33,7 +33,7 @@ const thesisSchema = new mongoose.Schema({
     word_count: {
         type: Number
     },
-    category: {
+    course: {
         type: String,
         default: 'General'
     },
