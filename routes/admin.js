@@ -188,7 +188,7 @@ router.delete('/users/:id', async (req, res) => {
 // @desc    Get all theses (paginated & searchable)
 router.get('/theses', async (req, res) => {
     try {
-        const { search, category, year, sort } = req.query;
+        const { search, category, year, sort, status } = req.query;
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 10;
         const skip = (page - 1) * limit;
@@ -227,6 +227,13 @@ router.get('/theses', async (req, res) => {
             }
         }
 
+        // Status filter
+        if (status === 'pending') {
+            query.isApproved = false;
+        } else if (status === 'approved') {
+            query.isApproved = true;
+        }
+ 
         // Sort logic
         let sortOption = { createdAt: -1 };
         if (sort === 'oldest') sortOption = { createdAt: 1 };
