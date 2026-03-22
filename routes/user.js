@@ -47,7 +47,7 @@ const profileUpload = multer({
 // @desc    Submit a new thesis
 router.post('/theses', auth, async (req, res) => {
     try {
-        const { title, abstract, author, year_range, category, id } = req.body;
+        const { title, abstract, author, year_range, course, id } = req.body;
 
         const newThesis = new Thesis({
             id: id || `USER-${Date.now()}`, // Fallback ID if not provided
@@ -55,7 +55,7 @@ router.post('/theses', auth, async (req, res) => {
             abstract,
             author,
             year_range,
-            category,
+            course,
             createdBy: req.user,
             isApproved: false // Always false by default for user submissions
         });
@@ -88,7 +88,7 @@ router.get('/theses', auth, async (req, res) => {
 // @desc    Update a thesis created by the logged-in user
 router.put('/theses/:id', auth, async (req, res) => {
     try {
-        const { title, abstract, author, year_range, category } = req.body;
+        const { title, abstract, author, year_range, course } = req.body;
         
         let thesis = await Thesis.findOne({ _id: req.params.id, createdBy: req.user });
 
@@ -101,7 +101,7 @@ router.put('/theses/:id', auth, async (req, res) => {
         if (abstract) thesis.abstract = abstract;
         if (author) thesis.author = author;
         if (year_range) thesis.year_range = year_range;
-        if (category) thesis.category = category;
+        if (course) thesis.course = course;
         
         // Reset approval status on edit to require re-review
         thesis.isApproved = false;

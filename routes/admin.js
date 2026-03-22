@@ -191,7 +191,7 @@ router.delete('/users/:id', async (req, res) => {
 // @desc    Get all theses (paginated & searchable)
 router.get('/theses', async (req, res) => {
     try {
-        const { search, category, year, sort, status } = req.query;
+        const { search, course, year, sort, status } = req.query;
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 10;
         const skip = (page - 1) * limit;
@@ -206,12 +206,12 @@ router.get('/theses', async (req, res) => {
             ];
         }
 
-        // Category filter
-        if (category && category !== 'all') {
-            if (category.toLowerCase() === 'uncategorized') {
-                query.category = { $in: [null, 'Uncategorized', 'uncategorized', ''] };
+        // Course filter
+        if (course && course !== 'all') {
+            if (course.toLowerCase() === 'uncategorized') {
+                query.course = { $in: [null, 'Uncategorized', 'uncategorized', ''] };
             } else {
-                query.category = category;
+                query.course = course;
             }
         }
 
