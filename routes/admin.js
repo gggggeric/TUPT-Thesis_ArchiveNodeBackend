@@ -288,6 +288,18 @@ router.get('/years', async (req, res) => {
     }
 });
 
+// @route   GET /admin/courses
+// @desc    Get all distinct courses in the DB (including unapproved)
+router.get('/courses', async (req, res) => {
+    try {
+        const courses = await Thesis.distinct('course');
+        const sortedCourses = courses.filter(c => c && c.toLowerCase() !== 'general').sort();
+        res.json(sortedCourses);
+    } catch (err) {
+        res.status(500).json({ success: false, message: 'Error fetching courses', error: err.message });
+    }
+});
+
 // @route   POST /admin/theses
 // @desc    Create a new thesis entry
 router.post('/theses', async (req, res) => {
