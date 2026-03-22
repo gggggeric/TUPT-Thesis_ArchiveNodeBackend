@@ -384,11 +384,12 @@ router.post('/recommendations', auth, async (req, res) => {
 
         const aiPrompt = `
             Role: Senior Academic Research Consultant & Strategic Advisor
-            Context: A student is seeking a high-level thesis recommendation based on their initial query or interest.
+            Context: A student is seeking institutional research guidance based on their initial query or interest.
             
             Subject Query: "${targetQuery}"
             
-            Task: Provide a "Strategic Research Intelligence & Recommendation Report" that transforms this query into specific, academically rigorous thesis titles.
+            Task: Generate a professional "Strategic Research Intelligence & Recommendation Report". 
+            Transform the provided query into specific, academically rigorous thesis titles.
             
             Structure your response EXACTLY with these sections:
             
@@ -396,26 +397,28 @@ router.post('/recommendations', auth, async (req, res) => {
             Subject Query: "${targetQuery}"
             
             Functional Requirements:
-            [Explain why this query needs refinement and what makes a strong thesis title in this context, focusing on scope, methodology, and academic contribution.]
+            Provide a deep analysis of why this specific query needs refinement. Discuss the necessary academic scope, methodology, and potential contribution to the field. Explain what makes a strong thesis title in this specific area.
             
             Conclusion:
-            [A brief summary of the transition from a general idea to a specific research investigation.]
+            Provide a authoritative summary of how the research transitions from a general idea to a structured, institutional investigation.
             
             Recommendations:
-            1. "[Specific, Polished Thesis Title 1]"
-            * Rationale: [Explain why this specific title is academically strong and what it covers.]
+            1. "[Polished Thesis Title 1]"
+            Rationale: Detail why this title is academically superior and its specific research focus.
             
-            2. "[Specific, Polished Thesis Title 2]"
-            * Rationale: [Explain why this specific title is academically strong and what it covers.]
+            2. "[Polished Thesis Title 2]"
+            Rationale: Detail why this title is academically superior and its specific research focus.
             
-            3. "[Specific, Polished Thesis Title 3]"
-            * Rationale: [Explain why this specific title is academically strong and what it covers.]
+            3. "[Polished Thesis Title 3]"
+            Rationale: Detail why this title is academically superior and its specific research focus.
             
             CRITICAL FORMATTING RULES:
-            - Use EXACTLY the headers above.
-            - DO NOT wrap headers in asterisks (NO *Functional Requirements:*, NO **Functional Requirements:**).
-            - Use double newlines (\n\n) between sections.
-            - Maintain a professional, authoritative, and institutional tone.
+            - Start EXACTLY with the header: Strategic Research Intelligence & Recommendation Report
+            - Use EXACTLY the headers: Functional Requirements:, Conclusion:, Recommendations:
+            - DO NOT include square brackets [ ] in your sections.
+            - DO NOT wrap headers in asterisks or markdown bolding.
+            - Use double newlines between sections.
+            - Maintain an authoritative, institutional, and highly professional tone.
         `;
 
         const aiResponse = await generateText(aiPrompt);
