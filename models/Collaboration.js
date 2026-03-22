@@ -21,6 +21,11 @@ const collaborationSchema = new mongoose.Schema({
         enum: ['pending', 'accepted', 'declined'],
         default: 'pending'
     },
+    adminStatus: {
+        type: String,
+        enum: ['pending', 'approved', 'declined'],
+        default: 'pending'
+    },
     message: {
         type: String,
         required: true,

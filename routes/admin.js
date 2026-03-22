@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
 const Thesis = require('../models/Thesis');
+const Collaboration = require('../models/Collaboration');
+const AiHistory = require('../models/AiHistory');
 const auth = require('../middleware/auth');
 const admin = require('../middleware/admin');
 const { invalidateSearchCache } = require('../modules/cache');
@@ -13,11 +15,12 @@ router.use(auth, admin);
 // @desc    Get dashboard statistics
 router.get('/stats', async (req, res) => {
     try {
-        const [userCount, thesisCount, pendingCount, graduatedCount] = await Promise.all([
+        const [userCount, thesisCount, pendingCount, graduatedCount, collaborationCount] = await Promise.all([
             User.countDocuments(),
             Thesis.countDocuments(),
             Thesis.countDocuments({ isApproved: false }),
-            User.countDocuments({ isGraduate: true })
+            User.countDocuments({ isGraduate: true }),
+            Collaboration.countDocuments()
         ]);
 
         // Fetch monthly data for the last 6 months
@@ -26,35 +29,30 @@ router.get('/stats', async (req, res) => {
         sixMonthsAgo.setDate(1);
         sixMonthsAgo.setHours(0, 0, 0, 0);
 
-        const [userMonthly, thesisMonthly, graduateMonthly] = await Promise.all([
+        const [userMonthly, thesisMonthly, graduateMonthly, collabMonthly, historyMonthly] = await Promise.all([
             User.aggregate([
                 { $match: { createdAt: { $gte: sixMonthsAgo } } },
-                {
-                    $group: {
-                        _id: { month: { $month: "$createdAt" }, year: { $year: "$createdAt" } },
-                        count: { $sum: 1 }
-                    }
-                },
+                { $group: { _id: { month: { $month: "$createdAt" }, year: { $year: "$createdAt" } }, count: { $sum: 1 } } },
                 { $sort: { "_id.year": 1, "_id.month": 1 } }
             ]),
             Thesis.aggregate([
                 { $match: { createdAt: { $gte: sixMonthsAgo } } },
-                {
-                    $group: {
-                        _id: { month: { $month: "$createdAt" }, year: { $year: "$createdAt" } },
-                        count: { $sum: 1 }
-                    }
-                },
+                { $group: { _id: { month: { $month: "$createdAt" }, year: { $year: "$createdAt" } }, count: { $sum: 1 } } },
                 { $sort: { "_id.year": 1, "_id.month": 1 } }
             ]),
             User.aggregate([
                 { $match: { createdAt: { $gte: sixMonthsAgo }, isGraduate: true } },
-                {
-                    $group: {
-                        _id: { month: { $month: "$createdAt" }, year: { $year: "$createdAt" } },
-                        count: { $sum: 1 }
-                    }
-                },
+                { $group: { _id: { month: { $month: "$createdAt" }, year: { $year: "$createdAt" } }, count: { $sum: 1 } } },
+                { $sort: { "_id.year": 1, "_id.month": 1 } }
+            ]),
+            Collaboration.aggregate([
+                { $match: { createdAt: { $gte: sixMonthsAgo } } },
+                { $group: { _id: { month: { $month: "$createdAt" }, year: { $year: "$createdAt" } }, count: { $sum: 1 } } },
+                { $sort: { "_id.year": 1, "_id.month": 1 } }
+            ]),
+            AiHistory.aggregate([
+                { $match: { createdAt: { $gte: sixMonthsAgo } } },
+                { $group: { _id: { month: { $month: "$createdAt" }, year: { $year: "$createdAt" } }, count: { $sum: 1 } } },
                 { $sort: { "_id.year": 1, "_id.month": 1 } }
             ])
         ]);
@@ -72,12 +70,16 @@ router.get('/stats', async (req, res) => {
             const userData = userMonthly.find(d => d._id.month === m && d._id.year === y);
             const thesisData = thesisMonthly.find(d => d._id.month === m && d._id.year === y);
             const graduateData = graduateMonthly.find(d => d._id.month === m && d._id.year === y);
+            const collabData = collabMonthly.find(d => d._id.month === m && d._id.year === y);
+            const historyData = historyMonthly.find(d => d._id.month === m && d._id.year === y);
 
             chartData.push({
                 name: monthNames[m - 1],
                 users: userData ? userData.count : 0,
                 theses: thesisData ? thesisData.count : 0,
-                graduated: graduateData ? graduateData.count : 0
+                graduated: graduateData ? graduateData.count : 0,
+                collaborations: collabData ? collabData.count : 0,
+                history: historyData ? historyData.count : 0
             });
         }
 
@@ -88,6 +90,7 @@ router.get('/stats', async (req, res) => {
                 theses: thesisCount,
                 pending: pendingCount,
                 graduated: graduatedCount,
+                collaborations: collaborationCount,
                 students: userCount - graduatedCount,
                 chartData
             }
@@ -369,6 +372,23 @@ router.patch('/theses/:id/disapprove', async (req, res) => {
         res.json({ success: true, message: 'Thesis disapproved successfully', data: thesis });
     } catch (err) {
         res.status(500).json({ success: false, message: 'Error disapproving thesis', error: err.message });
+    }
+});
+
+// @route   GET /admin/collaborations
+// @desc    Get all collaboration requests
+router.get('/collaborations', async (req, res) => {
+    try {
+        const collaborations = await Collaboration.find()
+            .populate('alumni', 'name idNumber profilePhoto')
+            .populate('undergrad', 'name idNumber profilePhoto')
+            .populate('thesis', 'title')
+            .sort({ createdAt: -1 });
+
+        res.json({ success: true, data: collaborations });
+    } catch (err) {
+        console.error('Fetch collaborations error:', err);
+        res.status(500).json({ success: false, message: 'Error fetching collaborations', error: err.message });
     }
 });
 

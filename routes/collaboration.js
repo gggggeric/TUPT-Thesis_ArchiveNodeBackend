@@ -3,6 +3,7 @@ const router = express.Router();
 const Collaboration = require('../models/Collaboration');
 const Thesis = require('../models/Thesis');
 const auth = require('../middleware/auth');
+const admin = require('../middleware/admin');
 
 // @route   POST /collaboration
 // @desc    Create a new collaboration request
@@ -70,7 +71,10 @@ router.get('/my-requests', auth, async (req, res) => {
 // @desc    Get requests received by the current user (Undergrad)
 router.get('/incoming', auth, async (req, res) => {
     try {
-        const requests = await Collaboration.find({ undergrad: req.user })
+        const requests = await Collaboration.find({ 
+            undergrad: req.user,
+            adminStatus: 'approved' 
+        })
             .populate('thesis', 'title id')
             .populate('alumni', 'name profilePhoto isGraduate')
             .sort({ createdAt: -1 });
@@ -102,6 +106,30 @@ router.patch('/:id', auth, async (req, res) => {
         res.json({ success: true, data: request });
     } catch (err) {
         console.error('Update request error:', err);
+        res.status(500).json({ success: false, message: 'Error updating request', error: err.message });
+    }
+});
+
+// @route   PATCH /collaboration/:id/admin-status
+// @desc    Admin update collaboration request status
+router.patch('/:id/admin-status', auth, admin, async (req, res) => {
+    try {
+        const { status } = req.body;
+        if (!['approved', 'declined'].includes(status)) {
+            return res.status(400).json({ success: false, message: 'Invalid status' });
+        }
+
+        const request = await Collaboration.findById(req.params.id);
+        if (!request) {
+            return res.status(404).json({ success: false, message: 'Collaboration request not found' });
+        }
+
+        request.adminStatus = status;
+        await request.save();
+
+        res.json({ success: true, data: request });
+    } catch (err) {
+        console.error('Admin update request error:', err);
         res.status(500).json({ success: false, message: 'Error updating request', error: err.message });
     }
 });
