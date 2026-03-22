@@ -375,4 +375,21 @@ router.patch('/theses/:id/disapprove', async (req, res) => {
     }
 });
 
+// @route   GET /admin/collaborations
+// @desc    Get all collaboration requests
+router.get('/collaborations', async (req, res) => {
+    try {
+        const collaborations = await Collaboration.find()
+            .populate('alumni', 'name idNumber profilePhoto')
+            .populate('undergrad', 'name idNumber profilePhoto')
+            .populate('thesis', 'title')
+            .sort({ createdAt: -1 });
+
+        res.json({ success: true, data: collaborations });
+    } catch (err) {
+        console.error('Fetch collaborations error:', err);
+        res.status(500).json({ success: false, message: 'Error fetching collaborations', error: err.message });
+    }
+});
+
 module.exports = router;
